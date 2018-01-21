@@ -6,8 +6,8 @@ import com.google.gson.JsonObject;
 
 public class JsonPrinter {
 
-    public static void printJSonObject(JsonObject object){
-        Gson gson=new GsonBuilder().setPrettyPrinting().create();
+    public static void printJSonObject(JsonObject object) {
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
         System.out.println(gson.toJson(object));
     }
 }
