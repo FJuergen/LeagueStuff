@@ -30,7 +30,7 @@ public class LeagueAPI {
     private static DBManager db = Main.db;
     private static List<Long> unchecked = new ArrayList<>();
     private static List<Long> checked = new ArrayList<>();
-    private static List<Long> rankedGames = new ArrayList<>();
+    private static List<Long> games = new ArrayList<>();
     private static List<Long> arams = new ArrayList<>();
     private static List<Long> checkedGames = new ArrayList<>();
     private static final String serializedFiles = "input/";
@@ -46,20 +46,20 @@ public class LeagueAPI {
     public static void main(String[] args) throws InterruptedException {
 
         Instant saveFiles = Instant.now().plus(10, ChronoUnit.MINUTES);
-
-        rankedGames.addAll(DataHandler.deserialize(serializedFiles + "games"));
+        System.out.println("Started at " + Instant.now().toString());
+        games.addAll(DataHandler.deserialize(serializedFiles + "games"));
         System.out.println("Loaded unchecked games");
         unchecked.addAll(DataHandler.deserialize(serializedFiles + "players"));
         System.out.println("Loaded unchecked players");
-        List<Long>[] DBGames = db.getPrevGames(420);
+        List<Long>[] DBGames = db.getPrevGames();
         checkedGames.addAll(DBGames[0]);
         unchecked.addAll(db.getOutOfDatePlayer());
-        while (unchecked.size() > 0 || rankedGames.size() > 0) {
-            System.out.println("checked Players:" + checked.size() + ", unchecked players:" + unchecked.size() + " checked Games:" + checkedGames.size() + " unchecked Games:" + rankedGames.size());
-            if (rankedGames.size() > 0) {
-                if (checkedGames.contains(rankedGames.get(0))) {
-                    rankedGames.remove(0);
-                } else checkGame(rankedGames.get(0));
+        while (unchecked.size() > 0 || games.size() > 0) {
+            System.out.println("checked Players:" + checked.size() + ", unchecked players:" + unchecked.size() + " checked Games:" + checkedGames.size() + " unchecked Games:" + games.size());
+            if (games.size() > 0) {
+                if (checkedGames.contains(games.get(0))) {
+                    games.remove(0);
+                } else checkGame(games.get(0));
 
             }
             if (unchecked.size() > 0) {
@@ -69,9 +69,9 @@ public class LeagueAPI {
             }
 
             if (saveFiles.isBefore(Instant.now())) {
-                DataHandler.serialize(rankedGames, serializedFiles + "games");
+                DataHandler.serialize(games, serializedFiles + "games");
                 DataHandler.serialize(unchecked, serializedFiles + "players");
-                System.out.println("Saved " + rankedGames.size() + " Games and " + unchecked.size() + " Players" + Instant.now().toString());
+                System.out.println("Saved " + games.size() + " Games and " + unchecked.size() + " Players at " + Instant.now().toString());
                 saveFiles = Instant.now().plus(10, ChronoUnit.MINUTES);
             }
         }
@@ -95,11 +95,7 @@ public class LeagueAPI {
             JsonObject matchList = getJsonObject(API_BASE + "/lol/match/v3/matchlists/by-account/" + playerID + "/recent?api_key=" + APIKEY);
             try {
                 StreamSupport.stream(matchList.get("matches").getAsJsonArray().spliterator(), false)
-                        .filter(node -> node.getAsJsonObject().get("queue").getAsInt() == 420)
-                        .forEach(node -> rankedGames.add(node.getAsJsonObject().get("gameId").getAsLong()));
-                StreamSupport.stream(matchList.get("matches").getAsJsonArray().spliterator(), false)
-                        .filter(node -> node.getAsJsonObject().get("queue").getAsInt() == 65)
-                        .forEach(node -> arams.add(node.getAsJsonObject().get("gameId").getAsLong()));
+                        .forEach(node -> games.add(node.getAsJsonObject().get("gameId").getAsLong()));
             } catch (NullPointerException e) {
                 System.err.println("Matchlist not found!:" + playerID);
                 unchecked.remove(playerID);
@@ -131,7 +127,7 @@ public class LeagueAPI {
                 StreamSupport.stream(game.get("participants").getAsJsonArray().spliterator(), false).forEach(entry -> champions.add(entry.getAsJsonObject().getAsJsonObject().get("championId").getAsLong()));
             } catch (NullPointerException e) {
                 System.err.println("SOMETHING WENT HORRIBLY WRONG WITH GAME:" + gameID);
-                rankedGames.remove(gameID);
+                games.remove(gameID);
                 return;
             }
             long[] playerArray = new long[players.size()];
@@ -145,7 +141,7 @@ public class LeagueAPI {
             for (long player : players) {
                 if (!checked.contains(player)) unchecked.add(player);
             }
-            if (rankedGames.contains(gameID)) rankedGames.remove(gameID);
+            if (games.contains(gameID)) games.remove(gameID);
             if (arams.contains(gameID)) arams.remove(gameID);
             checkedGames.add(gameID);
 

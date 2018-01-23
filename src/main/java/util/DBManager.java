@@ -119,6 +119,25 @@ public class DBManager {
         return gameInfo;
     }
 
+    public List<Long>[] getPrevGames() {
+        List<Long>[] gameInfo = new List[2];
+        gameInfo[0] = new ArrayList<>();
+        gameInfo[1] = new ArrayList<>();
+
+        try {
+            PreparedStatement getGames = connection.prepareStatement("SELECT gameid,players FROM games");
+            ResultSet result = getGames.executeQuery();
+            while (result.next()) {
+                gameInfo[0].add(result.getLong(1));
+                Long[] test = DataHandler.longArrayFromString(result.getString(2));
+                Collections.addAll(gameInfo[1], test);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return gameInfo;
+    }
+
     public Instant playerLastChecked(long playerID) {
         try {
             PreparedStatement checkLast = connection.prepareStatement("SELECT checked FROM player WHERE playerid = ?");
