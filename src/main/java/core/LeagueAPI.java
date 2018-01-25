@@ -43,7 +43,7 @@ public class LeagueAPI {
         }
     }
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
 
         Instant saveFiles = Instant.now().plus(10, ChronoUnit.MINUTES);
         System.out.println("Started at " + Instant.now().toString());
@@ -127,6 +127,9 @@ public class LeagueAPI {
                 StreamSupport.stream(game.get("participants").getAsJsonArray().spliterator(), false).forEach(entry -> champions.add(entry.getAsJsonObject().getAsJsonObject().get("championId").getAsLong()));
             } catch (NullPointerException e) {
                 System.err.println("SOMETHING WENT HORRIBLY WRONG WITH GAME:" + gameID);
+                if(game.get("status").getAsJsonObject().get("status_code").getAsInt() == 403){
+                    System.exit(0);
+                }
                 games.remove(gameID);
                 return;
             }
