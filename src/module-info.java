@@ -1,5 +1,6 @@
 module LeagueStuff {
-    requires jdk.incubator.httpclient;
-    requires gson;
+    requires java.net.http;
+    requires com.google.gson;
     requires java.sql;
+    requires org.apache.derby.tools;
 }

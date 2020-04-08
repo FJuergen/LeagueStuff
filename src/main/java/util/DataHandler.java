@@ -13,6 +13,14 @@ public class DataHandler {
         }
         return returnArray;
     }
+    public static String[] stringArrayFromString(String in) {
+        String[] inSplit = in.substring(1).substring(0, in.lastIndexOf("]") - 1).split(",");
+        String[] returnArray = new String[inSplit.length];
+        for (int i = 0; i < inSplit.length; i++) {
+            returnArray[i] = inSplit[i].trim();
+        }
+        return returnArray;
+    }
 
     public static void serialize(Object target, String filePath) {
         try (FileOutputStream fos = new FileOutputStream(filePath); ObjectOutputStream oos = new ObjectOutputStream(fos)) {

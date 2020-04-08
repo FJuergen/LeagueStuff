@@ -6,7 +6,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class DBManager {
-    private static final String connectionURL = "jdbc:derby:leagueDB";
+    private static final String connectionURL = "jdbc:derby:C:/LeagueDB";
     private Connection connection = null;
 
 
@@ -16,25 +16,30 @@ public class DBManager {
     public DBManager() {
         System.setProperty("derby.system.home", "E:\\db-derby-10.13.1.1-bin\\bin");
         try {
+            Class.forName("org.apache.derby.jdbc.ClientDriver");
             connection = DriverManager.getConnection(connectionURL);
-        } catch (SQLException e) {
+        } catch (SQLException | ClassNotFoundException e) {
             e.printStackTrace();
         }
     }
 
-    public void addPlayer(long playerID, String name, long checked) {
+    public void addPlayer(String playerID, String name, long checked, String summonerID, String puuid,int summonerLevel, int profileIconId) {
         try {
-            PreparedStatement addPlayer = connection.prepareStatement("INSERT INTO player(playerid,name,checked) VALUES(?,?,?)");
-            addPlayer.setLong(1, playerID);
+            PreparedStatement addPlayer = connection.prepareStatement("INSERT INTO player(playerid,name,checked,summonerid,puuid,summonerlevel,profileiconid) VALUES(?,?,?,?,?,?,?)");
+            addPlayer.setString(1, playerID);
             addPlayer.setString(2, name);
             addPlayer.setLong(3, checked);
+            addPlayer.setString(4, summonerID);
+            addPlayer.setString(5, puuid);
+            addPlayer.setInt(6, summonerLevel);
+            addPlayer.setInt(7, profileIconId);
             addPlayer.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    public void addGame(long gameID, long[] players, int winningTeam, String map, String gamemode, boolean checked, String patch, long[] champions) {
+    public void addGame(long gameID, String[] players, int winningTeam, String map, String gamemode, boolean checked, String patch, long[] champions) {
         try {
             PreparedStatement addGame = connection.prepareStatement("INSERT INTO games(gameid,players,winningteam,map,gamemode,checked,patch,champions) VALUES(?,?,?,?,?,?,?,?)");
             addGame.setLong(1, gameID);
@@ -51,10 +56,10 @@ public class DBManager {
         }
     }
 
-    public boolean checkForPlayer(long playerID) {
+    public boolean checkForPlayer(String playerID) {
         try {
             PreparedStatement check = connection.prepareStatement("SELECT * FROM player WHERE PLAYERID = ?");
-            check.setLong(1, playerID);
+            check.setString(1, playerID);
             return check.executeQuery().next();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -73,25 +78,25 @@ public class DBManager {
         return false;
     }
 
-    public void setCheckedPlayer(long playerID) {
+    public void setCheckedPlayer(String playerID) {
         try {
             PreparedStatement checkPlayer = connection.prepareStatement("UPDATE player SET checked = ? WHERE playerid = ?");
             checkPlayer.setLong(1, Instant.now().toEpochMilli());
-            checkPlayer.setLong(2, playerID);
+            checkPlayer.setString(2, playerID);
             checkPlayer.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    public List<Long> getOutOfDatePlayer() {
-        List<Long> returnList = new ArrayList<>();
+    public List<String> getOutOfDatePlayer() {
+        List<String> returnList = new ArrayList<>();
         try {
             PreparedStatement getPlayers = connection.prepareStatement("SELECT playerid FROM player WHERE checked<?");
             getPlayers.setLong(1, Instant.now().minus(7, ChronoUnit.DAYS).toEpochMilli());
             ResultSet resultSet = getPlayers.executeQuery();
             while (resultSet.next()) {
-                returnList.add(resultSet.getLong(1));
+                returnList.add(resultSet.getString(1));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -120,17 +125,14 @@ public class DBManager {
     }
 
     public List<Long>[] getPrevGames() {
-        List<Long>[] gameInfo = new List[2];
+        List<Long>[] gameInfo = new List[1];
         gameInfo[0] = new ArrayList<>();
-        gameInfo[1] = new ArrayList<>();
 
         try {
             PreparedStatement getGames = connection.prepareStatement("SELECT gameid,players FROM games");
             ResultSet result = getGames.executeQuery();
             while (result.next()) {
                 gameInfo[0].add(result.getLong(1));
-                Long[] test = DataHandler.longArrayFromString(result.getString(2));
-                Collections.addAll(gameInfo[1], test);
             }
         } catch (SQLException e) {
             e.printStackTrace();

@@ -1,15 +1,17 @@
 package main.java.core;
 
 import com.google.gson.*;
-import jdk.incubator.http.HttpClient;
-import jdk.incubator.http.HttpRequest;
-import jdk.incubator.http.HttpResponse;
 import main.java.util.DBManager;
 import main.java.util.DataHandler;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.net.ConnectException;
+import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -28,8 +30,8 @@ public class LeagueAPI {
     private static String APIKEY = "";
     private static Instant nextRequest = Instant.now();
     private static DBManager db = Main.db;
-    private static List<Long> unchecked = new ArrayList<>();
-    private static List<Long> checked = new ArrayList<>();
+    private static List<String> unchecked = new ArrayList<>();
+    private static List<String> checked = new ArrayList<>();
     private static List<Long> games = new ArrayList<>();
     private static List<Long> arams = new ArrayList<>();
     private static List<Long> checkedGames = new ArrayList<>();
@@ -54,6 +56,7 @@ public class LeagueAPI {
         List<Long>[] DBGames = db.getPrevGames();
         checkedGames.addAll(DBGames[0]);
         unchecked.addAll(db.getOutOfDatePlayer());
+        unchecked.add("OMRdqGIUkwRbpMs_neMzILYiyrraV3ZH0ojn0dw1LMgW8A");
         while (unchecked.size() > 0 || games.size() > 0) {
             System.out.println("checked Players:" + checked.size() + ", unchecked players:" + unchecked.size() + " checked Games:" + checkedGames.size() + " unchecked Games:" + games.size());
             if (games.size() > 0) {
@@ -79,26 +82,29 @@ public class LeagueAPI {
 
     }
 
-    private static void checkPlayer(long playerID) {
+    private static void checkPlayer(String playerID) {
         JsonObject player;
         try {
-            player = getJsonObject(API_BASE + "/lol/summoner/v3/summoners/by-account/" + playerID + "?api_key=" + APIKEY);
+            player = getJsonObject(API_BASE + "/lol/summoner/v4/summoners/by-account/" + playerID + "?api_key=" + APIKEY);
             try {
                 if (!db.checkForPlayer(playerID))
-                    db.addPlayer(player.get("accountId").getAsLong(), player.get("name").getAsString(), Instant.now().toEpochMilli());
-                else db.setCheckedPlayer(player.get("accountId").getAsLong());
+                    db.addPlayer(player.get("accountId").getAsString(), player.get("name").getAsString(), Instant.now().toEpochMilli(),
+                            player.get("id").getAsString(),player.get("puuid").getAsString(),player.get("summonerLevel").getAsInt(),
+                            player.get("profileIconId").getAsInt());
+                else db.setCheckedPlayer(player.get("accountId").getAsString());
             } catch (NullPointerException e) {
                 System.err.println("Player not found! :" + playerID);
                 unchecked.remove(playerID);
                 return;
             }
-            JsonObject matchList = getJsonObject(API_BASE + "/lol/match/v3/matchlists/by-account/" + playerID + "/recent?api_key=" + APIKEY);
+            JsonObject matchList = getJsonObject(API_BASE + "/lol/match/v4/matchlists/by-account/" + playerID + "/?endIndex=20&api_key=" + APIKEY);
             try {
                 StreamSupport.stream(matchList.get("matches").getAsJsonArray().spliterator(), false)
                         .forEach(node -> games.add(node.getAsJsonObject().get("gameId").getAsLong()));
             } catch (NullPointerException e) {
                 System.err.println("Matchlist not found!:" + playerID);
                 unchecked.remove(playerID);
+                e.printStackTrace();
                 return;
             }
             checked.add(playerID);
@@ -110,7 +116,7 @@ public class LeagueAPI {
 
 
     public static Map<Integer, String> getChampionIDList() throws InterruptedException {
-        JsonObject champions = getJsonObject(API_BASE + "/lol/static-data/v3/champions?api_key=" + APIKEY);
+        JsonObject champions = getJsonObject("http://ddragon.leagueoflegends.com/cdn/10.7.1/data/en_US/champion.json");
         assert champions != null;
         return champions.get("data").getAsJsonObject().entrySet().stream()
                 .collect(Collectors.toMap(entry -> entry.getValue().getAsJsonObject().get("id").getAsInt(), Map.Entry::getKey));
@@ -119,21 +125,22 @@ public class LeagueAPI {
 
     private static void checkGame(long gameID) {
         try {
-            JsonObject game = getJsonObject(API_BASE + "/lol/match/v3/matches/" + gameID + "?api_key=" + APIKEY);
-            List<Long> players = new ArrayList<>();
+            JsonObject game = getJsonObject(API_BASE + "/lol/match/v4/matches/" + gameID + "?api_key=" + APIKEY);
+            List<String> players = new ArrayList<>();
             List<Long> champions = new ArrayList<>();
             try {
-                StreamSupport.stream(game.get("participantIdentities").getAsJsonArray().spliterator(), false).forEach(entry -> players.add(entry.getAsJsonObject().getAsJsonObject().get("player").getAsJsonObject().get("accountId").getAsLong()));
+                StreamSupport.stream(game.get("participantIdentities").getAsJsonArray().spliterator(), false).forEach(entry -> players.add(entry.getAsJsonObject().getAsJsonObject().get("player").getAsJsonObject().get("accountId").getAsString()));
                 StreamSupport.stream(game.get("participants").getAsJsonArray().spliterator(), false).forEach(entry -> champions.add(entry.getAsJsonObject().getAsJsonObject().get("championId").getAsLong()));
             } catch (NullPointerException e) {
+                e.printStackTrace();
                 System.err.println("SOMETHING WENT HORRIBLY WRONG WITH GAME:" + gameID);
-                if(game.get("status").getAsJsonObject().get("status_code").getAsInt() == 403){
+                /*if(game.get("status").getAsJsonObject().get("status_code").getAsInt() == 403){
                     System.exit(0);
-                }
+                }*/
                 games.remove(gameID);
                 return;
             }
-            long[] playerArray = new long[players.size()];
+            String[] playerArray = new String[players.size()];
             long[] championArray = new long[champions.size()];
 
             for (int i = 0; i < players.size(); i++) playerArray[i] = players.get(i);
@@ -141,7 +148,7 @@ public class LeagueAPI {
             int winningTeam = game.get("teams").getAsJsonArray().get(0).getAsJsonObject().get("win").getAsString().equals("Win") ? 0 : 1;
             if (!db.checkForGame(gameID))
                 db.addGame(game.get("gameId").getAsLong(), playerArray, winningTeam, game.get("gameMode").getAsString(), game.get("queueId").getAsString(), true, game.get("gameVersion").getAsString(), championArray);
-            for (long player : players) {
+            for (String player : players) {
                 if (!checked.contains(player)) unchecked.add(player);
             }
             if (games.contains(gameID)) games.remove(gameID);
@@ -160,7 +167,7 @@ public class LeagueAPI {
             Thread.sleep(nextRequest.toEpochMilli() - Instant.now().toEpochMilli());
         }
         try {
-            response = client.send(request, HttpResponse.BodyHandler.asString());
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
             nextRequest = Instant.now().plusMillis(API_REQUEST_DELTA_TIME);
             return new JsonParser().parse(response.body()).getAsJsonObject();
         } catch (ConnectException e) {
